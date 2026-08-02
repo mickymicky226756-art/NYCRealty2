@@ -5030,15 +5030,15 @@
 
                 <div class="rc-pn-bank-title">Choose your Payment Bank</div>
 
-                <div class="rc-pn-bank-card selected" id="rcBankCard" onclick="rcSelectBank()">
-                    <div class="bank-logo">
-                        <img src="https://upload.wikimedia.org/wikipedia/en/thumb/3/3a/Commercial_Bank_of_Ethiopia_logo.svg/240px-Commercial_Bank_of_Ethiopia_logo.svg.png" onerror="this.style.display='none'; this.parentNode.innerHTML='<i class=\'fa-solid fa-building-columns\'></i>';">
+                <div id="rcPayNowBankList">
+                    <!-- Bank cards are rendered dynamically from admin-created
+                         payment methods (db.ref('settings/paymentMethods')).
+                         If no admin bank exists, the user sees a friendly
+                         empty state instead of any hard-coded bank. -->
+                    <div class="rc-pn-bank-empty" style="background:#f8fafc; border:1px dashed #cbd5e1; color:var(--text-muted); border-radius:14px; padding:18px 14px; text-align:center; font-size:0.85rem;">
+                        <i class="fa-solid fa-circle-info" style="display:block; font-size:1.4rem; margin-bottom:6px; color:var(--primary-color);"></i>
+                        Loading payment methods…
                     </div>
-                    <div class="bank-info">
-                        <div class="nm">Commercial Bank of Ethiopia</div>
-                        <div class="sub">Connect your Commercial Bank of Ethiopia</div>
-                    </div>
-                    <div class="radio"></div>
                 </div>
 
                 <div class="rc-pn-pay-btn">
@@ -5225,15 +5225,15 @@
 
                 <div class="pn-info-row">
                     <div class="lbl">Name:</div>
-                    <div class="val" id="pnName">Mr Sudeys Abdulkerim Mohammed</div>
+                    <div class="val" id="pnName">—</div>
                 </div>
                 <div class="pn-info-row">
                     <div class="lbl">Bank:</div>
-                    <div class="val" id="pnBank">Commercial Bank of Ethiopia</div>
+                    <div class="val" id="pnBank">—</div>
                 </div>
                 <div class="pn-info-row">
                     <div class="lbl">Account:</div>
-                    <div class="val" id="pnAccount">1000759399057<i class="fa-regular fa-copy copy" onclick="rcCopyText(document.getElementById('pnAccount').innerText)"></i></div>
+                    <div class="val" id="pnAccount">—<i class="fa-regular fa-copy copy" onclick="rcCopyText(document.getElementById('pnAccount').innerText)"></i></div>
                 </div>
                 <div class="pn-info-row">
                     <div class="lbl">Amount:</div>
@@ -11286,10 +11286,60 @@
             if (pnPayAmt) pnPayAmt.innerText = 'Br ' + rcCurrentAmount.toFixed(2);
             if (pnSn) pnSn.innerText = rcOrderSn;
 
-            const card = document.getElementById('rcBankCard');
-            if (card) card.classList.add('selected');
+            // Render bank cards dynamically from admin-created payment methods.
+            // No hard-coded bank is ever shown to the user.
+            const list = document.getElementById('rcPayNowBankList');
             const payBtn = document.getElementById('rcPnPayBtn');
-            if (payBtn) payBtn.disabled = false;
+            if (list) {
+                list.innerHTML = '<div class="rc-pn-bank-empty" style="background:#f8fafc; border:1px dashed #cbd5e1; color:var(--text-muted); border-radius:14px; padding:18px 14px; text-align:center; font-size:0.85rem;"><i class="fa-solid fa-circle-info" style="display:block; font-size:1.4rem; margin-bottom:6px; color:var(--primary-color);"></i>Loading payment methods…</div>';
+            }
+            if (payBtn) payBtn.disabled = true;
+
+            db.ref('settings/paymentMethods').once('value', function (snap) {
+                if (!list) return;
+                list.innerHTML = '';
+                if (!snap || !snap.exists()) {
+                    list.innerHTML = '<div class="rc-pn-bank-empty" style="background:#fef2f2; border:1px solid #fecaca; color:#b91c1c; border-radius:14px; padding:18px 14px; text-align:center; font-size:0.85rem;"><i class="fa-solid fa-circle-exclamation" style="display:block; font-size:1.4rem; margin-bottom:6px;"></i>No payment methods are available right now. Please contact customer service.</div>';
+                    if (payBtn) payBtn.disabled = true;
+                    return;
+                }
+                let firstKey = null;
+                let firstBank = null;
+                snap.forEach(function (ch) {
+                    const bank = ch.val() || {};
+                    const key = ch.key;
+                    if (!firstKey) { firstKey = key; firstBank = bank; }
+                    const safeName = String(bank.bankName || 'Bank').replace(/</g, '&lt;');
+                    const safeAcc  = String(bank.accountName || '').replace(/</g, '&lt;');
+                    const card = document.createElement('div');
+                    card.className = 'rc-pn-bank-card';
+                    card.setAttribute('data-bank-key', key);
+                    card.setAttribute('data-bank-name', bank.bankName || '');
+                    card.setAttribute('data-account-name', bank.accountName || '');
+                    card.setAttribute('data-account-number', bank.accountNumber || '');
+                    card.innerHTML =
+                        '<div class="bank-logo"><i class="fa-solid fa-building-columns"></i></div>' +
+                        '<div class="bank-info">' +
+                            '<div class="nm">' + safeName + '</div>' +
+                            '<div class="sub">Account holder: ' + safeAcc + '</div>' +
+                        '</div>' +
+                        '<div class="radio"></div>';
+                    card.addEventListener('click', function () { rcSelectBank(card); });
+                    list.appendChild(card);
+                });
+                if (firstBank && list.firstChild) {
+                    list.firstChild.classList.add('selected');
+                    rcSelectedBank = {
+                        key: firstKey,
+                        bankName: firstBank.bankName || '',
+                        accountName: firstBank.accountName || '',
+                        accountNumber: firstBank.accountNumber || ''
+                    };
+                    if (payBtn) payBtn.disabled = false;
+                } else if (payBtn) {
+                    payBtn.disabled = true;
+                }
+            });
 
             document.getElementById('rcPayNowModal').classList.add('show');
         }
@@ -11299,10 +11349,29 @@
             document.getElementById('rcPayNowModal').classList.remove('show');
         }
 
-        // Click on the bank card → just keep it selected (only one option, but selectable for UX)
-        function rcSelectBank() {
-            const card = document.getElementById('rcBankCard');
-            if (card) card.classList.add('selected');
+        // Track the user's currently selected admin payment method in the PayNow sheet
+        var rcSelectedBank = null;
+
+        // Click on a bank card → mark it selected and remember the bank details
+        function rcSelectBank(cardEl) {
+            const list = document.getElementById('rcPayNowBankList');
+            if (!list) return;
+            // cardEl may be a DOM element passed in, or fall back to legacy id
+            let card = cardEl;
+            if (!card || !card.getAttribute) {
+                card = document.getElementById('rcBankCard');
+            }
+            if (!card) return;
+            list.querySelectorAll('.rc-pn-bank-card').forEach(function (c) { c.classList.remove('selected'); });
+            card.classList.add('selected');
+            rcSelectedBank = {
+                key:              card.getAttribute('data-bank-key') || '',
+                bankName:         card.getAttribute('data-bank-name') || '',
+                accountName:      card.getAttribute('data-account-name') || '',
+                accountNumber:    card.getAttribute('data-account-number') || ''
+            };
+            const payBtn = document.getElementById('rcPnPayBtn');
+            if (payBtn) payBtn.disabled = false;
         }
 
         // Click "PAY" → close sheet, show the Important Notice modal with 5s countdown
@@ -11353,18 +11422,30 @@
             if (amtRow) amtRow.innerHTML = amt + '<i class="fa-regular fa-copy copy" onclick="rcCopyText(\'' + amt + '\')"></i>';
             if (ordRow) ordRow.innerHTML = rcOrderSn + '<i class="fa-regular fa-copy copy" onclick="rcCopyText(\'' + rcOrderSn + '\')"></i>';
 
-            // Name row — use the logged-in user's name from the user data
+            // Name row — show the admin-configured account holder for the selected bank
             const nameEl = document.getElementById('pnName');
             if (nameEl) {
-                const userName = (typeof userData !== 'undefined' && userData && userData.name) ? userData.name : 'Mr Sudeys Abdulkerim Mohammed';
-                nameEl.innerText = userName;
+                const accHolder = (rcSelectedBank && rcSelectedBank.accountName) ? rcSelectedBank.accountName : '';
+                nameEl.innerText = accHolder || '—';
             }
 
-            // Account number — prefer an admin-configured value, otherwise use the demo number
+            // Bank row — show the admin-configured bank name
+            const bankEl = document.getElementById('pnBank');
+            if (bankEl) {
+                const bankName = (rcSelectedBank && rcSelectedBank.bankName) ? rcSelectedBank.bankName : '';
+                bankEl.innerText = bankName || '—';
+            }
+
+            // Account number — strictly from the admin-created payment method
+            // that the user selected in the previous step. No hard-coded fallback.
             const accEl = document.getElementById('pnAccount');
+            const accNum = (rcSelectedBank && rcSelectedBank.accountNumber) ? String(rcSelectedBank.accountNumber) : '';
             if (accEl) {
-                const demoAcc = '1000759399057';
-                accEl.innerHTML = demoAcc + '<i class="fa-regular fa-copy copy" onclick="rcCopyText(\'' + demoAcc + '\')"></i>';
+                if (accNum) {
+                    accEl.innerHTML = accNum + '<i class="fa-regular fa-copy copy" onclick="rcCopyText(\'' + accNum + '\')"></i>';
+                } else {
+                    accEl.innerHTML = '—<i class="fa-regular fa-copy copy" onclick="rcCopyText(\'' + accNum + '\')"></i>';
+                }
             }
 
             // Reset the 15-minute expiry countdown
