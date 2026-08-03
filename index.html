@@ -11168,6 +11168,25 @@
             state.lastClaimDate = today;
             state.history.push({ date: today, amount: reward, day: state.cycleDay });
             dcSaveState(state);
+
+            // Credit the 20 ETB reward to the user's actual balance in Firebase.
+            // Without this, the local state would mark the day claimed but the
+            // user would never actually receive the money.
+            if (typeof db !== 'undefined' && currentUser && userData) {
+                const newBalance = (parseFloat(userData.balance) || 0) + reward;
+                const newIncome  = (parseFloat(userData.income)  || 0) + reward;
+                const updates = {};
+                updates['users/' + currentUser + '/balance'] = newBalance;
+                updates['users/' + currentUser + '/income']  = newIncome;
+                db.ref().update(updates).then(function () {
+                    userData.balance = newBalance;
+                    userData.income  = newIncome;
+                    if (typeof updateUI === 'function') updateUI();
+                }).catch(function (err) {
+                    showToast('Balance credit failed: ' + (err && err.message ? err.message : 'unknown error'));
+                });
+            }
+
             dcRender();
             if (typeof confetti !== 'undefined') {
                 const end = Date.now() + 800;
