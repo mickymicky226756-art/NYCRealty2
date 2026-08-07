@@ -6766,12 +6766,12 @@
             const t1 = document.getElementById('lvl1BonusText');
             const t2 = document.getElementById('lvl2BonusText');
             const t3 = document.getElementById('lvl3BonusText');
-            if (t1) t1.innerText = "When a friend you invite registers and invests, you will immediately receive a cash reward of "
-                + APP_CONFIG.level1Buy + "% of the friend's investment amount.";
-            if (t2) t2.innerText = "When your Level 2 team members invest, you will receive a "
-                + APP_CONFIG.level2Buy + "% cash bonus.";
-            if (t3) t3.innerText = "When your Level 3 team members invest, you will receive a "
-                + APP_CONFIG.level3Buy + "% cash bonus.";
+            if (t1) t1.innerText = "When a friend you invite makes their first investment, you will immediately receive a cash reward of "
+                + APP_CONFIG.level1Buy + "% of their investment amount (paid once only).";
+            if (t2) t2.innerText = "When your Level 2 team member makes their first investment, you will receive a "
+                + APP_CONFIG.level2Buy + "% cash bonus (paid once only).";
+            if (t3) t3.innerText = "When your Level 3 team member makes their first investment, you will receive a "
+                + APP_CONFIG.level3Buy + "% cash bonus (paid once only).";
 
             // Customer-service links — Support page quick-contact cards
             if (typeof bindSupportCardLinks === 'function') bindSupportCardLinks();
@@ -6790,9 +6790,9 @@
             const faqRef = document.getElementById('faqReferralAns');
             if (faqRef) {
                 faqRef.innerText = 'Share your invite link from the Team page. You earn '
-                    + APP_CONFIG.level1Buy + '% of your Level 1 invites\' first investment, plus '
-                    + APP_CONFIG.level2Buy + '% (L2) and '
-                    + APP_CONFIG.level3Buy + '% (L3) on subsequent investments.';
+                    + APP_CONFIG.level1Buy + '% from your Level 1 invite, '
+                    + APP_CONFIG.level2Buy + '% from your Level 2 invite, and '
+                    + APP_CONFIG.level3Buy + '% from your Level 3 invite — paid once on their FIRST plan purchase only.';
             }
 
             // If admin is logged in, also keep admin form in sync
@@ -7904,6 +7904,12 @@
         }
 
         function distributeCommissions(refCode, amount, isFirst) {
+            // Referral commission rule: only the invitee's FIRST plan purchase triggers payouts.
+            // On that first purchase, L1 (direct inviter), L2 (inviter's inviter), and L3 all
+            // earn their admin-configured share (level1Buy / level2Buy / level3Buy).
+            // Subsequent plan purchases pay NO referral commission to anyone.
+            if (!isFirst) return;
+
             // Use the admin-controlled 3-level buy-commission rates from APP_CONFIG.
             const r1 = (APP_CONFIG.level1Buy || 0) / 100;
             const r2 = (APP_CONFIG.level2Buy || 0) / 100;
@@ -7915,23 +7921,22 @@
                 snap.forEach(c => { if(c.val().refCode === refCode) { u1Key = c.key; u1 = c.val(); } });
                 
                 if(u1Key) {
-                    if (isFirst) {
-                        // First investment of the invitee → ONLY Level 1 (direct referrer) earns.
-                        const u1Bonus = amount * r1;
-                        db.ref('users/' + u1Key).update({
-                            balance: (u1.balance||0) + u1Bonus,
-                            commission: (u1.commission||0) + u1Bonus
-                        });
-                    } else if (u1.referredBy && u1.referredBy !== 'admin') {
-                        // Subsequent investments → Level 2 (and Level 3) earn, Level 1 does NOT.
+                    // Level 1 — direct referrer
+                    const u1Bonus = amount * r1;
+                    db.ref('users/' + u1Key).update({
+                        balance: (u1.balance||0) + u1Bonus,
+                        commission: (u1.commission||0) + u1Bonus
+                    });
+                    
+                    if(u1.referredBy && u1.referredBy !== 'admin') {
                         // Level 2
                         let u2Key = null, u2 = null;
                         snap.forEach(c => { if(c.val().refCode === u1.referredBy) { u2Key = c.key; u2 = c.val(); } });
                         if(u2Key) {
                             const u2Bonus = amount * r2;
-                            db.ref('users/' + u2Key).update({
-                                balance: (u2.balance||0) + u2Bonus,
-                                commission: (u2.commission||0) + u2Bonus
+                            db.ref('users/' + u2Key).update({ 
+                                balance: (u2.balance||0) + u2Bonus, 
+                                commission: (u2.commission||0) + u2Bonus 
                             });
                             if(u2.referredBy && u2.referredBy !== 'admin') {
                                 // Level 3
@@ -7939,9 +7944,9 @@
                                 snap.forEach(c => { if(c.val().refCode === u2.referredBy) { u3Key = c.key; u3 = c.val(); } });
                                 if(u3Key) {
                                     const u3Bonus = amount * r3;
-                                    db.ref('users/' + u3Key).update({
-                                        balance: (u3.balance||0) + u3Bonus,
-                                        commission: (u3.commission||0) + u3Bonus
+                                    db.ref('users/' + u3Key).update({ 
+                                        balance: (u3.balance||0) + u3Bonus, 
+                                        commission: (u3.commission||0) + u3Bonus 
                                     });
                                 }
                             }
