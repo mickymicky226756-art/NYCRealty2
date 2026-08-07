@@ -7915,22 +7915,23 @@
                 snap.forEach(c => { if(c.val().refCode === refCode) { u1Key = c.key; u1 = c.val(); } });
                 
                 if(u1Key) {
-                    // Level 1 — direct referrer
-                    const u1Bonus = amount * r1;
-                    db.ref('users/' + u1Key).update({
-                        balance: (u1.balance||0) + u1Bonus,
-                        commission: (u1.commission||0) + u1Bonus
-                    });
-                    
-                    if(u1.referredBy && u1.referredBy !== 'admin') {
+                    if (isFirst) {
+                        // First investment of the invitee → ONLY Level 1 (direct referrer) earns.
+                        const u1Bonus = amount * r1;
+                        db.ref('users/' + u1Key).update({
+                            balance: (u1.balance||0) + u1Bonus,
+                            commission: (u1.commission||0) + u1Bonus
+                        });
+                    } else if (u1.referredBy && u1.referredBy !== 'admin') {
+                        // Subsequent investments → Level 2 (and Level 3) earn, Level 1 does NOT.
                         // Level 2
                         let u2Key = null, u2 = null;
                         snap.forEach(c => { if(c.val().refCode === u1.referredBy) { u2Key = c.key; u2 = c.val(); } });
                         if(u2Key) {
                             const u2Bonus = amount * r2;
-                            db.ref('users/' + u2Key).update({ 
-                                balance: (u2.balance||0) + u2Bonus, 
-                                commission: (u2.commission||0) + u2Bonus 
+                            db.ref('users/' + u2Key).update({
+                                balance: (u2.balance||0) + u2Bonus,
+                                commission: (u2.commission||0) + u2Bonus
                             });
                             if(u2.referredBy && u2.referredBy !== 'admin') {
                                 // Level 3
@@ -7938,9 +7939,9 @@
                                 snap.forEach(c => { if(c.val().refCode === u2.referredBy) { u3Key = c.key; u3 = c.val(); } });
                                 if(u3Key) {
                                     const u3Bonus = amount * r3;
-                                    db.ref('users/' + u3Key).update({ 
-                                        balance: (u3.balance||0) + u3Bonus, 
-                                        commission: (u3.commission||0) + u3Bonus 
+                                    db.ref('users/' + u3Key).update({
+                                        balance: (u3.balance||0) + u3Bonus,
+                                        commission: (u3.commission||0) + u3Bonus
                                     });
                                 }
                             }
