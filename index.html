@@ -7925,7 +7925,8 @@
                     const u1Bonus = amount * r1;
                     db.ref('users/' + u1Key).update({
                         balance: (u1.balance||0) + u1Bonus,
-                        commission: (u1.commission||0) + u1Bonus
+                        commission: (u1.commission||0) + u1Bonus,
+                        lvl1Bonus: (u1.lvl1Bonus || 0) + u1Bonus
                     });
                     
                     if(u1.referredBy && u1.referredBy !== 'admin') {
@@ -7936,7 +7937,8 @@
                             const u2Bonus = amount * r2;
                             db.ref('users/' + u2Key).update({ 
                                 balance: (u2.balance||0) + u2Bonus, 
-                                commission: (u2.commission||0) + u2Bonus 
+                                commission: (u2.commission||0) + u2Bonus,
+                                lvl2Bonus: (u2.lvl2Bonus || 0) + u2Bonus
                             });
                             if(u2.referredBy && u2.referredBy !== 'admin') {
                                 // Level 3
@@ -7946,7 +7948,8 @@
                                     const u3Bonus = amount * r3;
                                     db.ref('users/' + u3Key).update({ 
                                         balance: (u3.balance||0) + u3Bonus, 
-                                        commission: (u3.commission||0) + u3Bonus 
+                                        commission: (u3.commission||0) + u3Bonus,
+                                        lvl3Bonus: (u3.lvl3Bonus || 0) + u3Bonus
                                     });
                                 }
                             }
